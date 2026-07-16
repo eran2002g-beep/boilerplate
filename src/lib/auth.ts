@@ -1,4 +1,5 @@
-import { SignJWT, jwtVerify } from "jose";
+import { createHash } from "crypto";
+import { EncryptJWT, jwtDecrypt } from "jose";
 import { NextRequest } from "next/server";
 import { getEmployeeByEmail } from "@/lib/employees";
 import { hashPassword, verifyPassword } from "@/lib/password";
@@ -25,9 +26,10 @@ async function getAdmin(): Promise<AdminUser> {
   return adminUser;
 }
 
-function getSecret() {
+/** 256-bit key for A256GCM (dir) — derived from JWT_SECRET. */
+function getEncryptionKey() {
   const secret = process.env.JWT_SECRET || "dev-secret-change-me-in-production";
-  return new TextEncoder().encode(secret);
+  return createHash("sha256").update(secret).digest();
 }
 
 export async function authenticate(
@@ -61,21 +63,24 @@ export async function authenticate(
 }
 
 export async function signToken(user: AuthUser): Promise<string> {
-  return new SignJWT({
+  return new EncryptJWT({
     email: user.email,
     name: user.name,
     kind: user.kind,
   })
-    .setProtectedHeader({ alg: "HS256" })
+    .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
     .setSubject(user.id)
     .setIssuedAt()
     .setExpirationTime("8h")
-    .sign(getSecret());
+    .encrypt(getEncryptionKey());
 }
 
 export async function verifyToken(token: string): Promise<AuthUser | null> {
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtDecrypt(token, getEncryptionKey(), {
+      contentEncryptionAlgorithms: ["A256GCM"],
+      keyManagementAlgorithms: ["dir"],
+    });
     if (!payload.sub || typeof payload.email !== "string") return null;
     const kind = payload.kind === "employee" ? "employee" : "admin";
     return {
