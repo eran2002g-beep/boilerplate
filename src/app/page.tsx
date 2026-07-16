@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import {
   createEmployee,
   deleteEmployee,
@@ -24,13 +26,25 @@ async function tinyPngFile(): Promise<File> {
   ), (c) => c.charCodeAt(0));
   return new File([bytes], "probe.png", { type: "image/png" });
 }
-import { redirect } from "next/navigation";
+import {
+  clearSession,
+  getStoredUser,
+  getToken,
+  type StoredUser,
+} from "@/lib/client-auth";
 
 export default function Home() {
+  const router = useRouter();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [done, setDone] = useState(false);
 
   useEffect(() => {
+    /// If the user is not logged in, redirect to the login page
+    if (!getToken()) {
+      router.replace("/login");
+      return;
+    }
+    
     let cancelled = false;
 
     async function run() {
