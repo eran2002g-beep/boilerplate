@@ -1,6 +1,10 @@
 import { isStrongEnoughPassword } from "@/lib/password";
 import { sanitizeEmail, sanitizeText } from "@/lib/sanitize";
-import type { CreateEmployeeInput, UpdateEmployeeInput } from "./types";
+import type {
+  CreateAdminInput,
+  CreateEmployeeInput,
+  UpdateEmployeeInput,
+} from "./types";
 
 function parseCoreFields(input: Record<string, unknown>): {
   data?: Omit<CreateEmployeeInput, "password">;
@@ -39,6 +43,37 @@ function parseCoreFields(input: Record<string, unknown>): {
       role: role.value,
       department: department.value,
       phone,
+    },
+  };
+}
+
+export function validateCreateAdmin(body: unknown): {
+  data?: CreateAdminInput;
+  error?: string;
+} {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return { error: "Request body must be a JSON object" };
+  }
+
+  const input = body as Record<string, unknown>;
+  if (typeof input.name !== "string") return { error: "name is required" };
+  if (typeof input.email !== "string") return { error: "email is required" };
+  if (typeof input.password !== "string") {
+    return { error: "password is required" };
+  }
+
+  const name = sanitizeText(input.name, "name", 80);
+  if (!name.ok) return { error: name.error };
+  const email = sanitizeEmail(input.email);
+  if (!email.ok) return { error: email.error };
+  const pwdErr = isStrongEnoughPassword(input.password);
+  if (pwdErr) return { error: pwdErr };
+
+  return {
+    data: {
+      name: name.value,
+      email: email.value,
+      password: input.password,
     },
   };
 }

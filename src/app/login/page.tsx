@@ -1,16 +1,43 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { login } from "@/lib/api";
+import { getMe, login } from "@/lib/api";
+import { clearSession, getToken } from "@/lib/client-auth";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@company.com");
-  const [password, setPassword] = useState("admin123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function checkSession() {
+      if (!getToken()) {
+        if (active) setCheckingSession(false);
+        return;
+      }
+
+      try {
+        await getMe();
+        if (active) router.replace("/employees");
+      } catch {
+        clearSession();
+        if (active) setCheckingSession(false);
+      }
+    }
+
+    void checkSession();
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -27,18 +54,13 @@ export default function LoginPage() {
     }
   }
 
+  if (checkingSession) return null;
+
   return (
     <div className={styles.page}>
       <form className={styles.form} onSubmit={onSubmit}>
         <p className={styles.eyebrow}>Employee directory</p>
         <h1 className={styles.title}>Sign in</h1>
-        <p className={styles.hint}>
-          Admin: <code>admin@company.com</code> / <code>admin123</code>
-          <br />
-          Employee: <code>ava.chen@company.com</code> / <code>password123</code>
-          <br />
-          Seed data: <code>npm run seed</code>
-        </p>
 
         <label className={styles.label}>
           Email

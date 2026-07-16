@@ -9,7 +9,7 @@ import {
   setSession,
   type StoredUser,
 } from "@/lib/client-auth";
-import type { Employee } from "@/lib/types";
+import type { Admin, Employee } from "@/lib/types";
 
 // ─── Shared types ───────────────────────────────────────────────────────────
 
@@ -58,6 +58,12 @@ export type LoginResult = {
   token: string;
   csrfToken: string;
   user: StoredUser;
+};
+
+export type AdminPayload = {
+  name: string;
+  email: string;
+  password: string;
 };
 
 // ─── Low-level fetch (auth + CSRF) ──────────────────────────────────────────
@@ -208,6 +214,17 @@ export async function logout(): Promise<void> {
 export async function getMe(): Promise<AuthProfile> {
   const data = await apiFetch<{ profile: AuthProfile }>("/api/auth/me");
   return data.profile;
+}
+
+// ─── Admins ─────────────────────────────────────────────────────────────────
+
+/** POST /api/admins — requires an authenticated admin. */
+export async function createAdmin(payload: AdminPayload): Promise<Admin> {
+  const data = await apiFetch<{ admin: Admin }>("/api/admins", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return data.admin;
 }
 
 // ─── Employees ──────────────────────────────────────────────────────────────
