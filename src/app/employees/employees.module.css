@@ -232,6 +232,44 @@
   gap: 0.75rem;
 }
 
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  background: #fff;
+  border: 1px solid #d7dee9;
+  border-radius: 10px;
+}
+
+.paginationControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.limitLabel {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.select {
+  font: inherit;
+  font-weight: 400;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid #c9d4e4;
+  border-radius: 7px;
+  background: #fff;
+  color: #0f172a;
+}
+
 .item {
   background: #fff;
   border: 1px solid #d7dee9;

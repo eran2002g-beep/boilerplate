@@ -45,6 +45,8 @@ const emptyForm: FormState = {
 };
 
 const emptyFilters: EmployeeFilters = { q: "", role: "", department: "" };
+const DEFAULT_LIMIT = 5;
+const LIMIT_OPTIONS = [1, 5, 10, 25, 50] as const;
 
 export default function EmployeesPage() {
   const router = useRouter();
@@ -52,6 +54,11 @@ export default function EmployeesPage() {
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(DEFAULT_LIMIT);
+  const [totalPages, setTotalPages] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrev, setHasPrev] = useState(false);
   const [filters, setFilters] = useState<EmployeeFilters>(emptyFilters);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -65,11 +72,34 @@ export default function EmployeesPage() {
     setProfile(await getMe());
   }, []);
 
-  const loadAll = useCallback(async (nextFilters: EmployeeFilters = filters) => {
-    const data = await listEmployees(nextFilters);
-    setEmployees(data.employees);
-    setTotal(data.total);
-  }, [filters]);
+  const loadAll = useCallback(
+    async (
+      nextFilters: EmployeeFilters = filters,
+      nextPage: number = page,
+      nextLimit: number = limit,
+    ) => {
+      const data = await listEmployees({
+        ...nextFilters,
+        page: nextPage,
+        limit: nextLimit,
+      });
+      setEmployees(data.employees);
+      setTotal(data.total);
+      setPage(data.page);
+      setLimit(data.limit);
+      setTotalPages(data.totalPages);
+      setHasNext(data.hasNext);
+      setHasPrev(data.hasPrev);
+
+      // If we landed past the last page (e.g. after a delete), step back.
+      if (data.employees.length === 0 && data.total > 0 && data.page > 1) {
+        return loadAll(nextFilters, data.page - 1, nextLimit);
+      }
+
+      return data;
+    },
+    [filters, page, limit],
+  );
 
   useEffect(() => {
     if (!getToken()) {
@@ -81,7 +111,10 @@ export default function EmployeesPage() {
     (async () => {
       try {
         await ensureCsrfToken(true);
-        await Promise.all([loadProfile(), loadAll(emptyFilters)]);
+        await Promise.all([
+          loadProfile(),
+          loadAll(emptyFilters, 1, DEFAULT_LIMIT),
+        ]);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load");
         if (String((err as Error).message).toLowerCase().includes("token")) {
@@ -162,7 +195,8 @@ export default function EmployeesPage() {
     setBusy(true);
     setError(null);
     try {
-      await loadAll(filters);
+      // Filters change → always restart at page 1
+      await loadAll(filters, 1, limit);
       setMessage(
         `Filtered list (${[
           filters.q && `q=${filters.q}`,
@@ -183,10 +217,35 @@ export default function EmployeesPage() {
     setFilters(emptyFilters);
     setBusy(true);
     try {
-      await loadAll(emptyFilters);
+      await loadAll(emptyFilters, 1, limit);
       setMessage("Showing all employees");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Refresh failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function goToPage(nextPage: number) {
+    setBusy(true);
+    setError(null);
+    try {
+      await loadAll(filters, nextPage, limit);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Page load failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changeLimit(nextLimit: number) {
+    setBusy(true);
+    setError(null);
+    try {
+      // Page size change → restart at page 1
+      await loadAll(filters, 1, nextLimit);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to change page size");
     } finally {
       setBusy(false);
     }
@@ -263,6 +322,8 @@ export default function EmployeesPage() {
 
   const selected = employees.find((e) => e.id === selectedId) ?? null;
   const me = profile?.employee;
+  const rangeFrom = total === 0 ? 0 : (page - 1) * limit + 1;
+  const rangeTo = total === 0 ? 0 : (page - 1) * limit + employees.length;
 
   return (
     <div className={styles.page}>
@@ -401,7 +462,7 @@ export default function EmployeesPage() {
               type="button"
               className={styles.ghost}
               onClick={() =>
-                loadAll().catch((e) => setError(e.message))
+                loadAll(filters, page, limit).catch((e) => setError(e.message))
               }
               disabled={busy}
             >
@@ -534,6 +595,49 @@ export default function EmployeesPage() {
               </li>
             ))}
           </ul>
+
+          <div className={styles.pagination}>
+            <p className={styles.muted}>
+              {total === 0
+                ? "No results"
+                : `Showing ${rangeFrom}–${rangeTo} of ${total}`}
+              {" · "}
+              Page {page} of {totalPages}
+            </p>
+            <div className={styles.paginationControls}>
+              <label className={styles.limitLabel}>
+                Per page
+                <select
+                  className={styles.select}
+                  value={limit}
+                  disabled={busy}
+                  onChange={(e) => changeLimit(Number(e.target.value))}
+                >
+                  {LIMIT_OPTIONS.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className={styles.ghost}
+                disabled={busy || !hasPrev}
+                onClick={() => goToPage(page - 1)}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className={styles.ghost}
+                disabled={busy || !hasNext}
+                onClick={() => goToPage(page + 1)}
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </section>
       </div>
 

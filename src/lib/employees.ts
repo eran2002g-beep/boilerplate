@@ -78,6 +78,19 @@ export type EmployeeFilters = {
   department?: string;
 };
 
+export type EmployeeListOptions = {
+  /** 1-based page index. */
+  page?: number;
+  /** Max rows to return for this page. */
+  limit?: number;
+};
+
+export type EmployeeListResult = {
+  employees: Employee[];
+  /** Total rows matching filters (across all pages). */
+  total: number;
+};
+
 function buildQuery(filters: EmployeeFilters): Filter<EmployeeRecord> {
   const and: Filter<EmployeeRecord>[] = [];
 
@@ -113,15 +126,28 @@ function buildQuery(filters: EmployeeFilters): Filter<EmployeeRecord> {
 
 export async function listEmployees(
   filters: EmployeeFilters = {},
-): Promise<Employee[]> {
+  options: EmployeeListOptions = {},
+): Promise<EmployeeListResult> {
   await ensureReady();
   const col = await employees();
-  const docs = await col
-    .find(buildQuery(filters))
-    .project({ _id: 0, passwordHash: 0 })
-    .sort({ name: 1 })
-    .toArray();
-  return docs as Employee[];
+  const query = buildQuery(filters);
+
+  const page = Math.max(1, options.page ?? 1);
+  const limit = Math.max(1, options.limit ?? 10);
+  const skip = (page - 1) * limit;
+
+  const [total, docs] = await Promise.all([
+    col.countDocuments(query),
+    col
+      .find(query)
+      .project({ _id: 0, passwordHash: 0 })
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(limit)
+      .toArray(),
+  ]);
+
+  return { employees: docs as Employee[], total };
 }
 
 export async function getEmployee(id: string): Promise<Employee | null> {

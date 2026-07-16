@@ -27,6 +27,22 @@ export type EmployeeFilters = {
   department?: string;
   name?: string;
   email?: string;
+  /** 1-based page index (default 1 on the API). */
+  page?: number;
+  /** Rows per page (default 10, max 100 on the API). */
+  limit?: number;
+};
+
+export type EmployeeListResponse = {
+  employees: Employee[];
+  filters: Omit<EmployeeFilters, "page" | "limit">;
+  page: number;
+  limit: number;
+  /** Total matching rows across all pages. */
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 };
 
 export type EmployeePayload = {
@@ -135,6 +151,8 @@ function buildQuery(filters: EmployeeFilters): string {
   }
   if (filters.name?.trim()) params.set("name", filters.name.trim());
   if (filters.email?.trim()) params.set("email", filters.email.trim());
+  if (filters.page != null) params.set("page", String(filters.page));
+  if (filters.limit != null) params.set("limit", String(filters.limit));
   const query = params.toString();
   return query ? `?${query}` : "";
 }
@@ -184,10 +202,10 @@ export async function getMe(): Promise<AuthProfile> {
 
 // ─── Employees ──────────────────────────────────────────────────────────────
 
-/** GET /api/employees */
+/** GET /api/employees — supports page & limit for pagination. */
 export async function listEmployees(
   filters: EmployeeFilters = {},
-): Promise<{ employees: Employee[]; total: number }> {
+): Promise<EmployeeListResponse> {
   return apiFetch(`/api/employees${buildQuery(filters)}`);
 }
 
