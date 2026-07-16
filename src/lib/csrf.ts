@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { REFRESH_TOKEN_TTL_SEC } from "@/lib/session-ttl";
 
 export const CSRF_COOKIE = "csrf_token";
 export const CSRF_HEADER = "x-csrf-token";
@@ -34,7 +35,7 @@ export function setCsrfCookie(response: NextResponse, token: string) {
     sameSite: "strict",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 8,
+    maxAge: REFRESH_TOKEN_TTL_SEC,
   });
 }
 

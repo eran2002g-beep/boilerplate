@@ -102,6 +102,7 @@ export default function EmployeesPage() {
   );
 
   useEffect(() => {
+    // If no token, redirect to login.
     if (!getToken()) {
       router.replace("/login");
       return;
@@ -116,11 +117,8 @@ export default function EmployeesPage() {
           loadAll(emptyFilters, 1, DEFAULT_LIMIT),
         ]);
       } catch (err) {
+        // 401 / failed refresh already clears session + redirects via api client.
         setError(err instanceof Error ? err.message : "Failed to load");
-        if (String((err as Error).message).toLowerCase().includes("token")) {
-          clearSession();
-          router.replace("/login");
-        }
       } finally {
         setLoading(false);
       }

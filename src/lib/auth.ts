@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 import { getEmployeeByEmail } from "@/lib/employees";
 import { getDb } from "@/lib/mongodb";
 import { verifyPassword } from "@/lib/password";
+import { ACCESS_TOKEN_TTL } from "@/lib/session-ttl";
 import type { AuthUser } from "./types";
 
 type AdminRecord = {
@@ -68,7 +69,7 @@ export async function signToken(user: AuthUser): Promise<string> {
     .setProtectedHeader({ alg: "dir", enc: "A256GCM" })
     .setSubject(user.id)
     .setIssuedAt()
-    .setExpirationTime("8h")
+    .setExpirationTime(ACCESS_TOKEN_TTL)
     .encrypt(getEncryptionKey());
 }
 

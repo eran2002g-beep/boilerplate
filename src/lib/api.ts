@@ -3,13 +3,27 @@
  * Pages should import from this file only (not call fetch/apiFetch directly).
  */
 import {
+  forceLogout,
   getCsrfToken,
   getToken,
+  refreshAccessToken,
   setCsrfToken,
   setSession,
+  shouldRefreshAccessToken,
   type StoredUser,
 } from "@/lib/client-auth";
 import type { Admin, Employee } from "@/lib/types";
+
+function handleUnauthorized(message?: string): never {
+  forceLogout();
+  throw new Error(message || "Invalid or expired token");
+}
+
+async function ensureFreshAccessToken(): Promise<void> {
+  if (!shouldRefreshAccessToken()) return;
+  const ok = await refreshAccessToken();
+  if (!ok) handleUnauthorized();
+}
 
 // ─── Shared types ───────────────────────────────────────────────────────────
 
@@ -57,6 +71,7 @@ export type EmployeePayload = {
 export type LoginResult = {
   token: string;
   csrfToken: string;
+  expiresIn?: number;
   user: StoredUser;
 };
 
@@ -75,6 +90,8 @@ export async function ensureCsrfToken(force = false): Promise<string | null> {
     if (existing) return existing;
   }
 
+  await ensureFreshAccessToken();
+
   const token = getToken();
   if (!token) return null;
 
@@ -83,6 +100,12 @@ export async function ensureCsrfToken(force = false): Promise<string | null> {
     headers: { Authorization: `Bearer ${token}` },
     credentials: "same-origin",
   });
+
+  if (res.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) return ensureCsrfToken(true);
+    handleUnauthorized();
+  }
 
   if (!res.ok) return null;
 
@@ -96,8 +119,11 @@ export async function ensureCsrfToken(force = false): Promise<string | null> {
 async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
-  retried = false,
+  csrfRetried = false,
+  authRetried = false,
 ): Promise<T> {
+  await ensureFreshAccessToken();
+
   const token = getToken();
   const headers = new Headers(options.headers);
   const method = (options.method || "GET").toUpperCase();
@@ -136,15 +162,31 @@ async function apiFetch<T>(
   });
   const data = await res.json().catch(() => ({}));
 
+  if (res.status === 401 && !authRetried) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return apiFetch<T>(path, options, csrfRetried, true);
+    }
+    handleUnauthorized(
+      typeof data.error === "string" ? data.error : "Invalid or expired token",
+    );
+  }
+
+  if (res.status === 401) {
+    handleUnauthorized(
+      typeof data.error === "string" ? data.error : "Invalid or expired token",
+    );
+  }
+
   if (
     res.status === 403 &&
     isMutating &&
-    !retried &&
+    !csrfRetried &&
     typeof data.error === "string" &&
     data.error.toLowerCase().includes("csrf")
   ) {
     await ensureCsrfToken(true);
-    return apiFetch<T>(path, options, true);
+    return apiFetch<T>(path, options, true, authRetried);
   }
 
   if (!res.ok) {
@@ -194,8 +236,13 @@ export async function login(
   }
 
   const result = data as LoginResult;
-  setSession(result.token, result.user, result.csrfToken);
+  setSession(result.token, result.user, result.csrfToken, result.expiresIn);
   return result;
+}
+
+/** POST /api/auth/refresh — usually called automatically by the API client. */
+export async function refreshSession(): Promise<boolean> {
+  return refreshAccessToken();
 }
 
 /** POST /api/auth/logout */

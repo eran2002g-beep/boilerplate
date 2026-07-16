@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authenticate, signToken } from "@/lib/auth";
 import { createCsrfToken, setCsrfCookie } from "@/lib/csrf";
+import { setRefreshCookie } from "@/lib/refresh-cookie";
+import { issueRefreshToken } from "@/lib/refresh-tokens";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { sanitizeEmail } from "@/lib/sanitize";
+import { ACCESS_TOKEN_TTL_MS } from "@/lib/session-ttl";
 
 export async function POST(request: NextRequest) {
   const limited = rateLimit(clientKey(request, "login"), 8, 60_000);
@@ -41,11 +44,13 @@ export async function POST(request: NextRequest) {
   }
 
   const token = await signToken(user);
+  const refreshToken = await issueRefreshToken(user);
   const csrfToken = createCsrfToken();
 
   const response = NextResponse.json({
     token,
     csrfToken,
+    expiresIn: Math.floor(ACCESS_TOKEN_TTL_MS / 1000),
     user: {
       id: user.id,
       email: user.email,
@@ -54,6 +59,7 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  setRefreshCookie(response, refreshToken);
   setCsrfCookie(response, csrfToken);
   return response;
 }

@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getMe, login } from "@/lib/api";
+import { getMe, login, refreshSession } from "@/lib/api";
 import { clearSession, getToken } from "@/lib/client-auth";
 import styles from "./login.module.css";
 
@@ -18,12 +18,16 @@ export default function LoginPage() {
     let active = true;
 
     async function checkSession() {
-      if (!getToken()) {
-        if (active) setCheckingSession(false);
-        return;
-      }
-
       try {
+        // If no token, try to refresh.
+        if (!getToken()) {
+          const refreshed = await refreshSession();
+          if (!refreshed) {
+            if (active) setCheckingSession(false);
+            return;
+          }
+        }
+
         await getMe();
         if (active) router.replace("/employees");
       } catch {
