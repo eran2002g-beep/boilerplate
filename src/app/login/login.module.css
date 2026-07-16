@@ -1,0 +1,97 @@
+.page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.25rem;
+  background:
+    radial-gradient(ellipse 70% 50% at 10% 20%, #d7e6ff 0%, transparent 55%),
+    radial-gradient(ellipse 60% 45% at 95% 85%, #d9f0e6 0%, transparent 50%),
+    #f4f6fa;
+}
+
+.form {
+  width: min(100%, 24rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.eyebrow {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4a5d78;
+}
+
+.title {
+  font-size: clamp(1.8rem, 4vw, 2.3rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: #0f172a;
+}
+
+.hint {
+  font-size: 0.9rem;
+  color: #475569;
+  margin-bottom: 0.35rem;
+}
+
+.hint code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.82em;
+  background: #e8eef8;
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.input {
+  font: inherit;
+  font-weight: 400;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #c9d4e4;
+  border-radius: 8px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.input:focus {
+  outline: 2px solid #94a3b8;
+  outline-offset: 1px;
+}
+
+.button {
+  margin-top: 0.35rem;
+  font: inherit;
+  font-weight: 600;
+  color: #f8fafc;
+  background: #0f172a;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  background: #1e293b;
+}
+
+.button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.error {
+  color: #b91c1c;
+  font-size: 0.9rem;
+}

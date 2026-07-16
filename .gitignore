@@ -33,9 +33,18 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# local app data & uploads
+/data/employees.json
+/public/uploads/*
+!/public/uploads/.gitkeep
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local mongodb data
+.mongo-data/
+data/
