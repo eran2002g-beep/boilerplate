@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { setSession } from "@/lib/client-auth";
+import { login } from "@/lib/api";
 import styles from "./login.module.css";
 
 export default function LoginPage() {
@@ -18,16 +18,7 @@ export default function LoginPage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ email, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Login failed");
-
-      setSession(data.token, data.user, data.csrfToken);
+      await login(email, password);
       router.replace("/employees");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");

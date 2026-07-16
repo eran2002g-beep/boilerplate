@@ -3,9 +3,22 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  apiFetch,
-  clearSession,
+  createEmployee,
+  deleteEmployee,
   ensureCsrfToken,
+  getEmployee,
+  getMe,
+  listEmployees,
+  logout as apiLogout,
+  patchEmployee,
+  updateEmployee,
+  uploadEmployeePhoto,
+  type AuthProfile,
+  type EmployeeFilters,
+  type EmployeePayload,
+} from "@/lib/api";
+import {
+  clearSession,
   getStoredUser,
   getToken,
   type StoredUser,
@@ -22,20 +35,6 @@ type FormState = {
   password: string;
 };
 
-type Filters = {
-  q: string;
-  role: string;
-  department: string;
-};
-
-type Profile = {
-  kind: "admin" | "employee";
-  id: string;
-  email: string;
-  name: string;
-  employee: Employee | null;
-};
-
 const emptyForm: FormState = {
   name: "",
   email: "",
@@ -45,15 +44,15 @@ const emptyForm: FormState = {
   password: "",
 };
 
-const emptyFilters: Filters = { q: "", role: "", department: "" };
+const emptyFilters: EmployeeFilters = { q: "", role: "", department: "" };
 
 export default function EmployeesPage() {
   const router = useRouter();
   const [user, setUser] = useState<StoredUser | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [total, setTotal] = useState(0);
-  const [filters, setFilters] = useState<Filters>(emptyFilters);
+  const [filters, setFilters] = useState<EmployeeFilters>(emptyFilters);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -63,21 +62,11 @@ export default function EmployeesPage() {
   const [busy, setBusy] = useState(false);
 
   const loadProfile = useCallback(async () => {
-    const data = await apiFetch<{ profile: Profile }>("/api/auth/me");
-    setProfile(data.profile);
+    setProfile(await getMe());
   }, []);
 
-  const loadAll = useCallback(async (nextFilters: Filters = filters) => {
-    const params = new URLSearchParams();
-    if (nextFilters.q.trim()) params.set("q", nextFilters.q.trim());
-    if (nextFilters.role.trim()) params.set("role", nextFilters.role.trim());
-    if (nextFilters.department.trim()) {
-      params.set("department", nextFilters.department.trim());
-    }
-
-    const query = params.toString();
-    const path = query ? `/api/employees?${query}` : "/api/employees";
-    const data = await apiFetch<{ employees: Employee[]; total: number }>(path);
+  const loadAll = useCallback(async (nextFilters: EmployeeFilters = filters) => {
+    const data = await listEmployees(nextFilters);
     setEmployees(data.employees);
     setTotal(data.total);
   }, [filters]);
@@ -107,14 +96,7 @@ export default function EmployeesPage() {
   }, [router]);
 
   async function logout() {
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "same-origin",
-      });
-    } catch {
-      // ignore
-    }
+    await apiLogout();
     clearSession();
     router.replace("/login");
   }
@@ -144,7 +126,7 @@ export default function EmployeesPage() {
     setError(null);
     setMessage(null);
 
-    const payload: Record<string, string | undefined> = {
+    const payload: EmployeePayload = {
       name: form.name,
       email: form.email,
       role: form.role,
@@ -152,15 +134,10 @@ export default function EmployeesPage() {
       phone: form.phone || undefined,
     };
 
-    if (form.password) payload.password = form.password;
-
     try {
       if (editingId) {
-        if (!form.password) delete payload.password;
-        await apiFetch(`/api/employees/${editingId}`, {
-          method: "PUT",
-          body: JSON.stringify(payload),
-        });
+        if (form.password) payload.password = form.password;
+        await updateEmployee(editingId, payload);
         setMessage("Employee updated (PUT)");
       } else {
         if (!form.password) {
@@ -168,11 +145,7 @@ export default function EmployeesPage() {
           setBusy(false);
           return;
         }
-        payload.password = form.password;
-        await apiFetch("/api/employees", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        await createEmployee({ ...payload, password: form.password });
         setMessage("Employee created (POST)");
       }
       resetForm();
@@ -224,10 +197,7 @@ export default function EmployeesPage() {
     setError(null);
     try {
       const nextRole = emp.role === "Engineer" ? "Senior Engineer" : "Engineer";
-      await apiFetch(`/api/employees/${emp.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ role: nextRole }),
-      });
+      await patchEmployee(emp.id, { role: nextRole });
       setMessage(`Patched role → ${nextRole}`);
       await Promise.all([loadAll(), loadProfile()]);
     } catch (err) {
@@ -242,7 +212,7 @@ export default function EmployeesPage() {
     setBusy(true);
     setError(null);
     try {
-      await apiFetch(`/api/employees/${id}`, { method: "DELETE" });
+      await deleteEmployee(id);
       if (selectedId === id) setSelectedId(null);
       if (editingId === id) resetForm();
       setMessage("Employee deleted (DELETE)");
@@ -258,9 +228,9 @@ export default function EmployeesPage() {
     setBusy(true);
     setError(null);
     try {
-      const data = await apiFetch<{ employee: Employee }>(`/api/employees/${id}`);
+      const employee = await getEmployee(id);
       setSelectedId(id);
-      setMessage(`Loaded ${data.employee.name} (GET /api/employees/${id})`);
+      setMessage(`Loaded ${employee.name} (GET /api/employees/${id})`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fetch failed");
     } finally {
@@ -273,9 +243,7 @@ export default function EmployeesPage() {
     setBusy(true);
     setError(null);
     try {
-      const body = new FormData();
-      body.append("photo", file);
-      await apiFetch(`/api/employees/${id}/photo`, { method: "POST", body });
+      await uploadEmployeePhoto(id, file);
       setMessage("Photo uploaded");
       await Promise.all([loadAll(), loadProfile()]);
     } catch (err) {
@@ -446,7 +414,7 @@ export default function EmployeesPage() {
               Search (q)
               <input
                 className={styles.input}
-                value={filters.q}
+                value={filters.q ?? ""}
                 onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
                 placeholder="name, email, role…"
               />
@@ -455,7 +423,7 @@ export default function EmployeesPage() {
               Role
               <input
                 className={styles.input}
-                value={filters.role}
+                value={filters.role ?? ""}
                 onChange={(e) =>
                   setFilters((f) => ({ ...f, role: e.target.value }))
                 }
@@ -466,7 +434,7 @@ export default function EmployeesPage() {
               Department
               <input
                 className={styles.input}
-                value={filters.department}
+                value={filters.department ?? ""}
                 onChange={(e) =>
                   setFilters((f) => ({ ...f, department: e.target.value }))
                 }
