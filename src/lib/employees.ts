@@ -11,7 +11,6 @@ import {
 } from "./types";
 
 const COLLECTION = "employees";
-const DEFAULT_SEED_PASSWORD = "password123";
 
 let ready: Promise<void> | null = null;
 
@@ -24,6 +23,7 @@ async function employees() {
   return db.collection<EmployeeRecord>(COLLECTION);
 }
 
+/** Ensures indexes exist. Demo users come from `npm run seed` only. */
 async function ensureReady() {
   if (!ready) {
     ready = (async () => {
@@ -34,37 +34,6 @@ async function ensureReady() {
         { key: { role: 1 }, name: "by_role" },
         { key: { department: 1 }, name: "by_department" },
       ]);
-
-      const count = await col.countDocuments();
-      if (count === 0) {
-        const passwordHash = await hashPassword(DEFAULT_SEED_PASSWORD);
-        await col.insertMany([
-          {
-            id: "emp-001",
-            name: "Ava Chen",
-            email: "ava.chen@company.com",
-            role: "Engineer",
-            department: "Product",
-            phone: "+1-555-0101",
-            photoUrl: null,
-            passwordHash,
-            createdAt: "2026-01-10T10:00:00.000Z",
-            updatedAt: "2026-01-10T10:00:00.000Z",
-          },
-          {
-            id: "emp-002",
-            name: "Jordan Blake",
-            email: "jordan.blake@company.com",
-            role: "Designer",
-            department: "Design",
-            phone: "+1-555-0102",
-            photoUrl: null,
-            passwordHash,
-            createdAt: "2026-02-01T12:00:00.000Z",
-            updatedAt: "2026-02-01T12:00:00.000Z",
-          },
-        ]);
-      }
     })();
   }
   await ready;

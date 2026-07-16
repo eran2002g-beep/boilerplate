@@ -2,28 +2,24 @@ import { createHash } from "crypto";
 import { EncryptJWT, jwtDecrypt } from "jose";
 import { NextRequest } from "next/server";
 import { getEmployeeByEmail } from "@/lib/employees";
-import { hashPassword, verifyPassword } from "@/lib/password";
+import { getDb } from "@/lib/mongodb";
+import { verifyPassword } from "@/lib/password";
 import type { AuthUser } from "./types";
 
-type AdminUser = {
+type AdminRecord = {
   id: string;
   email: string;
   name: string;
   passwordHash: string;
 };
 
-let adminUser: AdminUser | null = null;
-
-async function getAdmin(): Promise<AdminUser> {
-  if (!adminUser) {
-    adminUser = {
-      id: "admin-1",
-      email: "admin@company.com",
-      name: "Admin User",
-      passwordHash: await hashPassword("admin123"),
-    };
-  }
-  return adminUser;
+async function getAdminByEmail(email: string): Promise<AdminRecord | null> {
+  const db = await getDb();
+  const doc = await db.collection<AdminRecord>("admins").findOne(
+    { email: email.toLowerCase() },
+    { projection: { _id: 0 } },
+  );
+  return doc;
 }
 
 /** 256-bit key for A256GCM (dir) — derived from JWT_SECRET. */
@@ -36,8 +32,9 @@ export async function authenticate(
   email: string,
   password: string,
 ): Promise<AuthUser | null> {
-  const admin = await getAdmin();
-  if (email === admin.email) {
+  const normalized = email.toLowerCase();
+  const admin = await getAdminByEmail(normalized);
+  if (admin) {
     const ok = await verifyPassword(password, admin.passwordHash);
     if (!ok) return null;
     return {
@@ -48,7 +45,7 @@ export async function authenticate(
     };
   }
 
-  const employee = await getEmployeeByEmail(email);
+  const employee = await getEmployeeByEmail(normalized);
   if (!employee) return null;
 
   const ok = await verifyPassword(password, employee.passwordHash);

@@ -105,12 +105,22 @@ async function apiFetch<T>(
     if (csrf) headers.set("X-CSRF-Token", csrf);
   }
 
-  if (
-    options.body &&
-    !(options.body instanceof FormData) &&
-    !headers.has("Content-Type")
-  ) {
+  // Never force JSON on FormData/Blob/File — the runtime must set multipart
+  // boundaries (or keep the caller-supplied image Content-Type) itself.
+  const body = options.body;
+  const isBinaryBody =
+    (typeof FormData !== "undefined" && body instanceof FormData) ||
+    (typeof Blob !== "undefined" && body instanceof Blob) ||
+    (typeof ArrayBuffer !== "undefined" && body instanceof ArrayBuffer) ||
+    ArrayBuffer.isView(body);
+
+  if (body && !isBinaryBody && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
+  }
+
+  // If FormData is used, drop any Content-Type so the boundary is generated.
+  if (typeof FormData !== "undefined" && body instanceof FormData) {
+    headers.delete("Content-Type");
   }
 
   const res = await fetch(path, {
@@ -255,16 +265,20 @@ export async function deleteEmployee(id: string): Promise<void> {
   await apiFetch(`/api/employees/${id}`, { method: "DELETE" });
 }
 
-/** POST /api/employees/:id/photo */
+/** POST /api/employees/:id/photo — raw image body (not multipart). */
 export async function uploadEmployeePhoto(
   id: string,
   file: File,
 ): Promise<Employee> {
-  const body = new FormData();
-  body.append("photo", file);
   const data = await apiFetch<{ employee: Employee }>(
     `/api/employees/${id}/photo`,
-    { method: "POST", body },
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+      },
+      body: file,
+    },
   );
   return data.employee;
 }

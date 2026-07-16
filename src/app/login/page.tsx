@@ -36,6 +36,8 @@ export default function LoginPage() {
           Admin: <code>admin@company.com</code> / <code>admin123</code>
           <br />
           Employee: <code>ava.chen@company.com</code> / <code>password123</code>
+          <br />
+          Seed data: <code>npm run seed</code>
         </p>
 
         <label className={styles.label}>

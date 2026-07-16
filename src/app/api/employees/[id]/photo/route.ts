@@ -25,37 +25,74 @@ export async function POST(request: NextRequest, context: Ctx) {
     return NextResponse.json({ error: "Employee not found" }, { status: 404 });
   }
 
-  const form = await request.formData();
-  const file = form.get("photo");
+  const contentType = (request.headers.get("content-type") || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
 
-  if (!(file instanceof File)) {
+  // Prefer raw image body (avoids multipart/boundary parse failures).
+  // Still accept multipart field "photo" for older clients.
+  let mime = contentType;
+  let buffer: Buffer;
+
+  if (ALLOWED.has(contentType)) {
+    buffer = Buffer.from(await request.arrayBuffer());
+  } else if (contentType.startsWith("multipart/form-data")) {
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid multipart body. Send the image as the raw request body with Content-Type set to the image MIME type.",
+        },
+        { status: 400 },
+      );
+    }
+    const file = form.get("photo");
+    if (!(file instanceof File)) {
+      return NextResponse.json(
+        { error: 'Expected multipart field "photo"' },
+        { status: 400 },
+      );
+    }
+    mime = file.type;
+    buffer = Buffer.from(await file.arrayBuffer());
+  } else {
     return NextResponse.json(
-      { error: 'Expected multipart field "photo"' },
+      {
+        error:
+          "Send an image body with Content-Type image/jpeg, image/png, image/webp, or image/gif",
+      },
       { status: 400 },
     );
   }
 
-  if (!ALLOWED.has(file.type)) {
+  if (!ALLOWED.has(mime)) {
     return NextResponse.json(
       { error: "Photo must be jpeg, png, webp, or gif" },
       { status: 400 },
     );
   }
 
-  if (file.size > MAX_BYTES) {
+  if (buffer.byteLength === 0) {
+    return NextResponse.json({ error: "Empty photo body" }, { status: 400 });
+  }
+
+  if (buffer.byteLength > MAX_BYTES) {
     return NextResponse.json(
       { error: "Photo must be 2MB or smaller" },
       { status: 400 },
     );
   }
 
-  const ext = file.type.split("/")[1] === "jpeg" ? "jpg" : file.type.split("/")[1];
+  const ext = mime.split("/")[1] === "jpeg" ? "jpg" : mime.split("/")[1];
   const uploadsDir = path.join(process.cwd(), "public", "uploads");
   await fs.mkdir(uploadsDir, { recursive: true });
 
   // Filename uses sanitized id only — never raw user path segments
   const filename = `${id.value}-${Date.now()}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
   await fs.writeFile(path.join(uploadsDir, filename), buffer);
 
   const photoUrl = `/uploads/${filename}`;
