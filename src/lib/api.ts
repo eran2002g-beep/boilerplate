@@ -81,6 +81,12 @@ export type AdminPayload = {
   password: string;
 };
 
+export type ChatResponse = {
+  reply: string;
+  kind: "greeting" | "help" | "data" | "fallback" | "empty";
+  suggestions?: string[];
+};
+
 // ─── Low-level fetch (auth + CSRF) ──────────────────────────────────────────
 
 /** Fetch a fresh CSRF cookie + token when missing or after a CSRF failure. */
@@ -328,6 +334,18 @@ export async function patchEmployee(
 export async function deleteEmployee(id: string): Promise<void> {
   await apiFetch(`/api/employees/${id}`, { method: "DELETE" });
 }
+
+// ─── Chatbot ────────────────────────────────────────────────────────────────
+
+/** POST /api/chat — ask the built-in assistant a question about the app. */
+export async function sendChatMessage(message: string): Promise<ChatResponse> {
+  return apiFetch<ChatResponse>("/api/chat", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
+}
+
+// ─── Employees (continued) ────────────────────────────────────────────────
 
 /** POST /api/employees/:id/photo — raw image body (not multipart). */
 export async function uploadEmployeePhoto(

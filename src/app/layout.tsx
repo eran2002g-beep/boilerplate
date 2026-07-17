@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { ChatWidget } from "@/components/chat-widget";
 import { SessionWatcher } from "@/components/session-watcher";
 import "./globals.css";
 
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body>
         <SessionWatcher />
         {children}
+        <ChatWidget />
       </body>
     </html>
   );

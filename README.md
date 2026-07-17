@@ -125,3 +125,13 @@ Repeat until refresh fails (expired after 7d, logout, or token reuse)
 | `POST` | `/api/employees` | Create |
 | `GET/PUT/PATCH/DELETE` | `/api/employees/:id` | CRUD |
 | `POST` | `/api/employees/:id/photo` | Upload photo |
+| `POST` | `/api/chat` | Built-in assistant — `{ message }` → `{ reply, kind, suggestions? }` |
+
+## Assistant (chatbot)
+
+A signed-in-only floating assistant (bottom-right) answers questions about the app with **no external LLM** — it's a rule-based engine:
+
+- **App help** — how to log in, add/edit/delete employees, upload photos, search, pagination, sessions, and security (knowledge base in `src/lib/chatbot.ts`).
+- **Live directory data** — counts, per-department/role breakdowns, "who works in X", and person lookups, via read-only MongoDB aggregates in `src/lib/directory-insights.ts`.
+
+The endpoint reuses the same auth + CSRF + rate-limit guard as the rest of the API.
